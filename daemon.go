@@ -223,6 +223,17 @@ func processSourceLogged(config *Config, source string) error {
 		return err
 	}
 
+	if config.FocusTopics != "" {
+		focused, err := ExtractFocusedContent(config, summary)
+		if err != nil {
+			log.Printf("  Warning: failed to extract focused content: %v\n", err)
+		} else if focused != "" && focused != "No relevant content found." {
+			if err := StoreFocusedContent(source, focused); err != nil {
+				log.Printf("  Warning: failed to store focused content: %v\n", err)
+			}
+		}
+	}
+
 	log.Printf("  ✓ Completed %s\n", source)
 	return nil
 }
