@@ -65,6 +65,23 @@ func StoreFocusedContent(url, focused string) error {
 	return os.WriteFile(focusPath, []byte(focused), 0644)
 }
 
+func StoreCombinedFocusedContent(focused string) error {
+	dataDir, err := GetDataDir()
+	if err != nil {
+		return err
+	}
+
+	focusDir := filepath.Join(dataDir, "focus")
+	if err := os.MkdirAll(focusDir, 0755); err != nil {
+		return err
+	}
+
+	focusPath := filepath.Join(focusDir, "combined.md")
+	timestamp := time.Now().Format(time.RFC3339)
+	content := fmt.Sprintf("# Combined Focus Summary\n\nGenerated: %s\n\n---\n\n%s\n", timestamp, focused)
+	return os.WriteFile(focusPath, []byte(content), 0644)
+}
+
 func GetFocusedContent(url string) (string, error) {
 	focusPath, err := getFocusFilePath(url)
 	if err != nil {

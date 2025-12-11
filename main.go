@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -252,12 +253,31 @@ func runOnce(config *Config) error {
 	}
 
 	fmt.Println("Starting crawl and summarization...")
+	var allSummaries []string
 	for _, source := range config.Sources {
-		if err := processSource(config, source); err != nil {
+		summary, err := processSource(config, source)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error processing %s: %v\n", source, err)
 			continue
 		}
+		if config.FocusTopics != "" && summary != "" {
+			allSummaries = append(allSummaries, summary)
+		}
 	}
+
+	if config.FocusTopics != "" && len(allSummaries) > 0 {
+		fmt.Println("Extracting focused content from all summaries...")
+		combinedSummaries := strings.Join(allSummaries, "\n\n---\n\n")
+		focused, err := ExtractFocusedContent(config, combinedSummaries)
+		if err != nil {
+			fmt.Printf("Warning: failed to extract focused content: %v\n", err)
+		} else if focused != "" && focused != "No relevant content found." {
+			if err := StoreCombinedFocusedContent(focused); err != nil {
+				fmt.Printf("Warning: failed to store focused content: %v\n", err)
+			}
+		}
+	}
+
 	fmt.Println("Done!")
 	return nil
 }
@@ -294,12 +314,12 @@ func validateConfig(config *Config) error {
 	return nil
 }
 
-func processSource(config *Config, source string) error {
+func processSource(config *Config, source string) (string, error) {
 	fmt.Printf("Processing: %s\n", source)
 
 	cached, err := IsCached(source)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var content string
@@ -307,40 +327,29 @@ func processSource(config *Config, source string) error {
 		fmt.Printf("  Using cached content for %s\n", source)
 		content, err = GetCachedContent(source)
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		fmt.Printf("  Crawling %s\n", source)
 		content, err = CrawlWebsite(source)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if err := CacheContent(source, content); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	fmt.Printf("  Summarizing %s\n", source)
 	summary, err := SummarizeWithAI(config, content, source)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if err := StoreSummarization(source, summary); err != nil {
-		return err
-	}
-
-	if config.FocusTopics != "" {
-		focused, err := ExtractFocusedContent(config, summary)
-		if err != nil {
-			fmt.Printf("  Warning: failed to extract focused content: %v\n", err)
-		} else if focused != "" && focused != "No relevant content found." {
-			if err := StoreFocusedContent(source, focused); err != nil {
-				fmt.Printf("  Warning: failed to store focused content: %v\n", err)
-			}
-		}
+		return "", err
 	}
 
 	fmt.Printf("  ✓ Completed %s\n", source)
-	return nil
+	return summary, nil
 }

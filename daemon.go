@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -177,22 +178,41 @@ func runOnceLogged(config *Config) error {
 	}
 
 	log.Println("Starting crawl and summarization...")
+	var allSummaries []string
 	for _, source := range config.Sources {
-		if err := processSourceLogged(config, source); err != nil {
+		summary, err := processSourceLogged(config, source)
+		if err != nil {
 			log.Printf("Error processing %s: %v\n", source, err)
 			continue
 		}
+		if config.FocusTopics != "" && summary != "" {
+			allSummaries = append(allSummaries, summary)
+		}
 	}
+
+	if config.FocusTopics != "" && len(allSummaries) > 0 {
+		log.Println("Extracting focused content from all summaries...")
+		combinedSummaries := strings.Join(allSummaries, "\n\n---\n\n")
+		focused, err := ExtractFocusedContent(config, combinedSummaries)
+		if err != nil {
+			log.Printf("Warning: failed to extract focused content: %v\n", err)
+		} else if focused != "" && focused != "No relevant content found." {
+			if err := StoreCombinedFocusedContent(focused); err != nil {
+				log.Printf("Warning: failed to store focused content: %v\n", err)
+			}
+		}
+	}
+
 	log.Println("Done!")
 	return nil
 }
 
-func processSourceLogged(config *Config, source string) error {
+func processSourceLogged(config *Config, source string) (string, error) {
 	log.Printf("Processing: %s\n", source)
 
 	cached, err := IsCached(source)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var content string
@@ -200,42 +220,31 @@ func processSourceLogged(config *Config, source string) error {
 		log.Printf("  Using cached content for %s\n", source)
 		content, err = GetCachedContent(source)
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		log.Printf("  Crawling %s\n", source)
 		content, err = CrawlWebsite(source)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if err := CacheContent(source, content); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	log.Printf("  Summarizing %s\n", source)
 	summary, err := SummarizeWithAI(config, content, source)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if err := StoreSummarization(source, summary); err != nil {
-		return err
-	}
-
-	if config.FocusTopics != "" {
-		focused, err := ExtractFocusedContent(config, summary)
-		if err != nil {
-			log.Printf("  Warning: failed to extract focused content: %v\n", err)
-		} else if focused != "" && focused != "No relevant content found." {
-			if err := StoreFocusedContent(source, focused); err != nil {
-				log.Printf("  Warning: failed to store focused content: %v\n", err)
-			}
-		}
+		return "", err
 	}
 
 	log.Printf("  ✓ Completed %s\n", source)
-	return nil
+	return summary, nil
 }
 
 func ShowLogs() error {
