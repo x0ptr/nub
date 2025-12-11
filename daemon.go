@@ -40,6 +40,10 @@ func StartDaemon(config *Config) error {
 		return fmt.Errorf("daemon already running (PID: %d)", pid)
 	}
 
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return fmt.Errorf("failed to create data directory: %v", err)
+	}
+
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %v", err)
