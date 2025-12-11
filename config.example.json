@@ -1,0 +1,11 @@
+{
+  "sources": [
+    "https://news.ycombinator.com",
+    "https://example.com"
+  ],
+  "llm_api_key": "",
+  "llm_api_url": "https://api.mistral.ai/v1/chat/completions",
+  "llm_api_model": "mistral-small-latest",
+  "schedule_minutes": 15,
+  "summary_prompt": "Summarize the key news topics and main stories from this website. Focus on the most important headlines and provide a concise overview in markdown format."
+}
