@@ -14,7 +14,8 @@ func main() {
 	runMode := flag.Bool("run", false, "Run crawl and summarization once")
 	daemonMode := flag.Bool("d", false, "Run in daemon mode")
 	stopDaemon := flag.Bool("stop", false, "Stop running daemon")
-	showMode := flag.Bool("show", false, "Show summarizations in HTML")
+	showMode := flag.Bool("show", false, "Show summarizations in pager")
+	showHTML := flag.Bool("show-html", false, "Show summarizations in HTML browser")
 	
 	listSources := flag.Bool("list", false, "List all sources")
 	addSource := flag.String("add-source", "", "Add a source URL")
@@ -198,6 +199,14 @@ func main() {
 		return
 	}
 
+	if *showHTML {
+		if err := ShowSummarizationsHTML(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error showing summarizations: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if flag.NFlag() == 0 {
 		showHelp()
 		return
@@ -211,7 +220,8 @@ func showHelp() {
 	fmt.Println("  nub --run                        Run crawl and summarization once")
 	fmt.Println("  nub -d                           Run in daemon mode")
 	fmt.Println("  nub --stop                       Stop running daemon")
-	fmt.Println("  nub --show                       Show summarizations in HTML")
+	fmt.Println("  nub --show                       Show summarizations in pager")
+	fmt.Println("  nub --show-html                  Show summarizations in HTML browser")
 	fmt.Println()
 	fmt.Println("Source Management:")
 	fmt.Println("  nub --list                       List all sources")

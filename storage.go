@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
+	stripmd "github.com/writeas/go-strip-markdown/v2"
 )
 
 func getSummaryFilePath(url string) (string, error) {
@@ -99,6 +101,81 @@ func GetFocusedContent(url string) (string, error) {
 }
 
 func ShowSummarizations() error {
+	dataDir, err := GetDataDir()
+	if err != nil {
+		return err
+	}
+
+	summariesDir := filepath.Join(dataDir, "summaries")
+	if _, err := os.Stat(summariesDir); os.IsNotExist(err) {
+		fmt.Println("No summarizations found")
+		return nil
+	}
+
+	files, err := os.ReadDir(summariesDir)
+	if err != nil {
+		return err
+	}
+
+	if len(files) == 0 {
+		fmt.Println("No summarizations found")
+		return nil
+	}
+
+	tempFile := filepath.Join(dataDir, "view.md")
+	var content string
+
+	config, err := LoadConfig()
+	if err == nil && config.FocusTopics != "" {
+		content += fmt.Sprintf("═══════════════════════════════════════════════════════════════════\n")
+		content += fmt.Sprintf("  FOCUS: %s\n", config.FocusTopics)
+		content += fmt.Sprintf("═══════════════════════════════════════════════════════════════════\n\n")
+
+		focusDir := filepath.Join(dataDir, "focus")
+		if focusFiles, err := os.ReadDir(focusDir); err == nil {
+			for _, focusFile := range focusFiles {
+				if filepath.Ext(focusFile.Name()) != ".md" {
+					continue
+				}
+				focusPath := filepath.Join(focusDir, focusFile.Name())
+				focusContent, err := os.ReadFile(focusPath)
+				if err == nil {
+					content += markdownToPlainText(string(focusContent)) + "\n\n"
+				}
+			}
+		}
+		content += "───────────────────────────────────────────────────────────────────\n\n"
+	}
+
+	for _, file := range files {
+		if filepath.Ext(file.Name()) != ".md" {
+			continue
+		}
+
+		filePath := filepath.Join(summariesDir, file.Name())
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+
+		content += markdownToPlainText(string(fileContent)) + "\n\n"
+		content += "───────────────────────────────────────────────────────────────────\n\n"
+	}
+
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		return err
+	}
+
+	pager := "less"
+	if os.Getenv("PAGER") != "" {
+		pager = os.Getenv("PAGER")
+	}
+
+	exec := &execCmd{name: pager, args: []string{tempFile}}
+	return exec.runWait()
+}
+
+func ShowSummarizationsHTML() error {
 	dataDir, err := GetDataDir()
 	if err != nil {
 		return err
@@ -311,6 +388,57 @@ func markdownToHTML(md string) string {
 	renderer := html.NewRenderer(opts)
 
 	return string(markdown.Render(doc, renderer))
+}
+
+func markdownToPlainText(md string) string {
+	text := stripmd.Strip(md)
+	
+	lines := strings.Split(text, "\n")
+	var formatted []string
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			formatted = append(formatted, "")
+			continue
+		}
+		
+		if strings.HasPrefix(line, "Summary for:") || strings.HasPrefix(line, "Generated:") {
+			formatted = append(formatted, line)
+		} else if len(line) > 0 {
+			wrapped := wrapText(line, 78)
+			formatted = append(formatted, wrapped...)
+		}
+	}
+	
+	return strings.Join(formatted, "\n")
+}
+
+func wrapText(text string, width int) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+	
+	var lines []string
+	var currentLine string
+	
+	for _, word := range words {
+		if currentLine == "" {
+			currentLine = word
+		} else if len(currentLine)+1+len(word) <= width {
+			currentLine += " " + word
+		} else {
+			lines = append(lines, currentLine)
+			currentLine = word
+		}
+	}
+	
+	if currentLine != "" {
+		lines = append(lines, currentLine)
+	}
+	
+	return lines
 }
 
 func openInBrowser(path string) error {
