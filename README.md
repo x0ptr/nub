@@ -1,17 +1,19 @@
 # nub
 
-A simple, fast CLI tool for crawling websites, summarizing them with AI, and displaying results.
+A simple, fast CLI tool for crawling websites, summarizing them with AI, and displaying results in both plain text and HTML formats.
 
 ## Features
 
-- Crawl and cache websites
-- AI-powered summarization (OpenAI-compatible APIs)
-- Smart caching (24-hour cache validity)
-- Daemon mode for scheduled crawling
-- Minimalist HTML viewer (HackerNews-inspired design)
-- Full markdown support
-- Logs viewer with pager support
-- Fast, simple, zero bloat
+- **Smart Crawling**: Crawl and cache websites with 24-hour cache validity
+- **AI-Powered Summarization**: Uses OpenAI-compatible APIs for intelligent content summarization
+- **Focus Topics**: Filter content to show only what matters to you
+- **Dual Display Modes**: 
+  - Clean ASCII text in pager (optimized for terminal reading)
+  - Rich HTML in browser (HackerNews-inspired design)
+- **Daemon Mode**: Scheduled background crawling with configurable intervals
+- **Full Markdown Support**: Complete markdown rendering with syntax highlighting
+- **Logs Viewer**: Built-in pager support for daemon logs
+- **Fast & Simple**: Zero bloat, pure Go implementation
 
 ## Installation
 
@@ -79,9 +81,20 @@ Example configuration:
   "llm_api_url": "https://api.mistral.ai/v1/chat/completions",
   "llm_api_model": "mistral-small-latest",
   "schedule_minutes": 15,
+  "focus_topics": "go,javascript,rust",
   "summary_prompt": "Summarize the key news topics and main stories from this website. Focus on the most important headlines and provide a concise overview in markdown format."
 }
 ```
+
+### Configuration Fields
+
+- **sources**: Array of URLs to crawl and summarize
+- **llm_api_key**: API key for your LLM provider
+- **llm_api_url**: API endpoint URL (OpenAI-compatible)
+- **llm_api_model**: Model name to use for summarization
+- **schedule_minutes**: Interval for daemon mode (default: 15)
+- **focus_topics**: Comma-separated topics to filter content (optional)
+- **summary_prompt**: Custom prompt for AI summarization (optional)
 
 ## Usage
 
@@ -149,8 +162,11 @@ nub
 # Run crawl and summarization once
 nub --run
 
-# View summaries in browser
+# View summaries in terminal (plain text in pager)
 nub --show
+
+# View summaries in browser (rich HTML)
+nub --show-html
 
 # Run in daemon mode (detaches and runs in background)
 nub -d
@@ -186,16 +202,35 @@ When running in daemon mode with `nub -d`:
 2. **Check Cache**: Checks if website is cached (24-hour validity, or until cleared)
 3. **Crawl**: If not cached, fetches website content
 4. **Summarize**: Uses OpenAI-compatible API to generate summary
-5. **Store**: Saves summary as markdown in `~/.local/nub/summaries/`
-6. **Display**: View all summaries as formatted HTML with enhanced markdown rendering
+5. **Focus (Optional)**: Extracts only content matching your focus topics
+6. **Store**: Saves summaries as markdown in `~/.local/nub/summaries/`
+7. **Display**: View as plain text (`--show`) or HTML (`--show-html`)
+
+### Display Modes
+
+**Plain Text Mode (`--show`)**
+- Strips all markdown formatting for clean ASCII reading
+- Optimized text wrapping at 78 characters
+- Visual separators between summaries
+- Opens in your configured pager (less, more, etc.)
+- Perfect for terminal-only workflows
+
+**HTML Mode (`--show-html`)**
+- Rich markdown rendering with full formatting
+- HackerNews-inspired minimalist design
+- Syntax highlighting for code blocks
+- Opens in your default browser
+- Mobile responsive
 
 ### Default Behavior
 
-Running `nub` without arguments shows the help menu. Use `nub --run` to crawl and summarize sites, or `nub --show` to view existing summaries.
+Running `nub` without arguments shows the help menu. Use `nub --run` to crawl and summarize sites, `nub --show` for terminal view, or `nub --show-html` for browser view.
 
 ## Markdown Rendering
 
-The HTML viewer features a comprehensive markdown renderer with minimalist HackerNews-inspired design:
+### HTML Mode Features
+
+The HTML viewer features comprehensive markdown rendering with a minimalist HackerNews-inspired design:
 
 **Supported Markdown:**
 - **Formatting**: Bold (`**text**`), italic (`*text*`), inline code (`` `code` ``)
@@ -210,23 +245,37 @@ The HTML viewer features a comprehensive markdown renderer with minimalist Hacke
 - Clean, minimal aesthetic inspired by HackerNews
 - Verdana font (10pt) for maximum readability
 - Beige background (#f6f6ef) easy on the eyes
-- Orange header bar (#ff6600) for visual anchor
+- Pink/rose header bar (#dc94ba) for visual anchor
 - Mobile responsive with optimized spacing
-- Fast loading, zero bloat
+- Fast loading, zero JavaScript
+
+### Plain Text Mode Features
+
+The plain text viewer provides clean, terminal-friendly output:
+
+- **Markdown Stripping**: Removes all markdown syntax for pure ASCII reading
+- **Smart Text Wrapping**: Wraps at 78 characters for comfortable terminal viewing
+- **Visual Separators**: Uses Unicode box drawing characters for clear section breaks
+- **Focus Highlighting**: Distinguished headers for focused content sections
+- **Preserved Structure**: Maintains paragraph breaks and logical content flow
+- **Pager Integration**: Works seamlessly with less, more, or your configured $PAGER
 
 ## Data Storage
 
 - **Config**: `~/.config/nub/config.json` (preserved by `--clear-data`)
-- **Cache**: `~/.local/nub/cache/` (HTML content)
-- **Summaries**: `~/.local/nub/summaries/` (Markdown files)
-- **Logs**: `~/.local/nub/nub.log` (Daemon logs)
-- **PID File**: `~/.local/nub/nub.pid` (Daemon process ID)
-- **HTML View**: `~/.local/nub/view.html`
+- **Cache**: `~/.local/nub/cache/` (HTML content from websites)
+- **Summaries**: `~/.local/nub/summaries/` (AI-generated markdown summaries)
+- **Focus**: `~/.local/nub/focus/` (Filtered content based on topics)
+- **Logs**: `~/.local/nub/nub.log` (Daemon operation logs)
+- **PID File**: `~/.local/nub/nub.pid` (Daemon process tracking)
+- **View Files**: 
+  - `~/.local/nub/view.md` (Plain text view for pager)
+  - `~/.local/nub/view.html` (HTML view for browser)
 
 ### Clearing Data
 
-- `--clear-cache`: Removes only cached website content
-- `--clear-data`: Removes **all** data in `~/.local/nub/` (cache, summaries, logs, PID)
+- `--clear-cache`: Removes only cached website content (forces fresh crawls)
+- `--clear-data`: Removes **all** data in `~/.local/nub/` (cache, summaries, focus, logs, PID)
 - Note: Config file in `~/.config/nub/` is **not** affected by `--clear-data`
 
 ## Supported LLM Providers
@@ -236,6 +285,47 @@ Any OpenAI-compatible API:
 - Mistral AI
 - Anthropic (via compatible endpoint)
 - Local LLMs (Ollama, LM Studio, etc.)
+- Any service implementing the OpenAI chat completions API
+
+## Quick Reference
+
+```bash
+# Setup
+nub --set-llm-api-key <key>          # Set API key
+nub --set-llm-api-url <url>          # Set API endpoint
+nub --set-llm-api-model <model>      # Set model name
+nub --add-source <url>               # Add website to track
+
+# Running
+nub --run                            # Crawl and summarize once
+nub -d                               # Start daemon (background)
+nub --stop                           # Stop daemon
+
+# Viewing
+nub --show                           # View in terminal (plain text)
+nub --show-html                      # View in browser (HTML)
+nub --logs                           # View daemon logs
+
+# Managing
+nub --list                           # List all sources
+nub --rem-source <id>                # Remove source
+nub --clear-cache                    # Clear cached websites
+nub --clear-data                     # Clear all data
+
+# Optional
+nub --set-focus <topics>             # Filter by topics
+nub --set-prompt <text>              # Custom prompt
+nub --set-schedule-time <mins>       # Set daemon interval
+```
+
+## Tips
+
+- Use `--show` for quick terminal checks, `--show-html` for detailed browsing
+- Set focus topics to reduce noise and see only what matters
+- Daemon mode is perfect for morning news digests
+- Cache is valid for 24 hours - use `--clear-cache` to force fresh content
+- Customize the summary prompt to match your reading style
+- View files are temporary and regenerated on each `--show` call
 
 ## License
 
